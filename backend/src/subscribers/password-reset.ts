@@ -19,7 +19,7 @@ export default async function resetPasswordTokenHandler({
       config.admin.backendUrl !== "/"
         ? config.admin.backendUrl
         : "http://localhost:9000";
-    const adminPath = config.admin.path;
+    const adminPath = config.admin.path || "/app";
     urlPrefix = `${backendUrl}${adminPath}`;
   }
 
