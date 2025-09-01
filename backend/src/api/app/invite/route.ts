@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { IUserModuleService } from "@medusajs/framework/types";
+import { IUserModuleService, IAuthModuleService } from "@medusajs/framework/types";
 import { Modules } from "@medusajs/framework/utils";
 
 export const GET = async (
@@ -268,12 +268,19 @@ export const GET = async (
               submitBtn.textContent = 'Processing...';
               
               try {
-                const response = await fetch('/app/invite', {
+                // Try the admin registration endpoint directly
+                const response = await fetch('/admin/auth/user/emailpass/register', {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
                   },
-                  body: JSON.stringify(data)
+                  body: JSON.stringify({
+                    email: data.email,
+                    password: data.password,
+                    first_name: data.first_name,
+                    last_name: data.last_name,
+                    invite_token: data.token
+                  })
                 });
                 
                 const result = await response.text();
@@ -350,16 +357,11 @@ export const POST = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
-  const { token, first_name, last_name, password } = req.body as {
-    token?: string;
-    first_name?: string;
-    last_name?: string;
-    password?: string;
-  };
+  const { token } = req.body as { token?: string };
 
-  if (!token || !first_name || !last_name || !password) {
+  if (!token) {
     return res.status(400).json({
-      message: "Missing required fields: token, first_name, last_name, password"
+      message: "Missing invite token"
     });
   }
 
@@ -383,36 +385,20 @@ export const POST = async (
       });
     }
 
-    // Accept the invite - Create a user based on the invite
-    const user = await userModuleService.createUsers({
-      email: invite.email,
-      first_name,
-      last_name,
-      // Note: Password handling might need to be different in Medusa 2.0
-      // This is a simplified approach
-    });
-
-    // Mark invite as accepted
-    await userModuleService.updateInvites({
-      id: invite.id,
-      accepted: true,
-    });
-
+    // Return the invite info for validation - let the admin auth handle user creation
     return res.json({
       success: true,
-      message: "Invite accepted successfully",
-      user: {
-        id: user.id,
-        email: user.email,
-        first_name: user.first_name,
-        last_name: user.last_name
+      message: "Token is valid",
+      invite: {
+        email: invite.email,
+        token: invite.token
       }
     });
 
   } catch (error) {
-    console.error('Error accepting invite:', error);
+    console.error('Error validating invite:', error);
     return res.status(500).json({
-      message: "Failed to accept invite",
+      message: "Failed to validate invite",
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
