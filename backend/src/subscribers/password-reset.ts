@@ -30,7 +30,7 @@ export default async function resetPasswordTokenHandler({
     data: {
       customer: { email, first_name: "", last_name: "" }, // Minimal customer data
       reset_token: token,
-      reset_url: `${urlPrefix}/account/reset-password?token=${token}&email=${email}`,
+      reset_url: `${urlPrefix}/reset-password?token=${token}&email=${email}`,
       storefront_url: actor_type === "customer" ? (config.admin.storefrontUrl || "https://warawul.coffee") : undefined,
       expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour from now
     },
