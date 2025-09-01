@@ -31,26 +31,30 @@ const nextConfig = {
           : "http",
         hostname: process.env.NEXT_PUBLIC_BASE_URL?.replace(/^https?:\/\//, ""),
       },
-      {
-        // Note: only needed when using local-file for product media
-        protocol: process.env.NEXT_MEDUSA_BACKEND_URL?.startsWith("https")
-          ? "https"
-          : "http",
-        hostname: process.env.NEXT_MEDUSA_BACKEND_URL?.replace(
-          /^https?:\/\//,
-          ""
-        ),
-      },
+      ...(process.env.MEDUSA_BACKEND_URL
+        ? [
+            {
+              // Note: only needed when using local-file for product media
+              protocol: process.env.MEDUSA_BACKEND_URL.startsWith("https")
+                ? "https"
+                : "http",
+              hostname: process.env.MEDUSA_BACKEND_URL.replace(
+                /^https?:\/\//,
+                ""
+              ),
+            },
+          ]
+        : []),
 
-      // ...(process.env.NEXT_PUBLIC_MINIO_ENDPOINT
-      //   ? [
-      //       {
-      //         // Note: needed when using MinIO bucket storage for media
-      //         protocol: "https",
-      //         hostname: process.env.NEXT_PUBLIC_MINIO_ENDPOINT,
-      //       },
-      //     ]
-      //   : []),
+      ...(process.env.NEXT_PUBLIC_MINIO_ENDPOINT
+        ? [
+            {
+              // Note: needed when using MinIO bucket storage for media
+              protocol: "https",
+              hostname: process.env.NEXT_PUBLIC_MINIO_ENDPOINT,
+            },
+          ]
+        : []),
     ],
   },
 }
