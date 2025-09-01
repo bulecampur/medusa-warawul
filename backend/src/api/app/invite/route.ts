@@ -268,7 +268,23 @@ export const GET = async (
               submitBtn.textContent = 'Processing...';
               
               try {
-                // Try the admin registration endpoint directly
+                // First validate the token with our backend
+                const validateResponse = await fetch('/app/invite', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    token: data.token
+                  })
+                });
+                
+                if (!validateResponse.ok) {
+                  const errorData = await validateResponse.json();
+                  throw new Error(errorData.message || 'Invalid invite token');
+                }
+                
+                // Register the user normally (without invite_token in the request)
                 const response = await fetch('/admin/auth/user/emailpass/register', {
                   method: 'POST',
                   headers: {
@@ -278,14 +294,29 @@ export const GET = async (
                     email: data.email,
                     password: data.password,
                     first_name: data.first_name,
-                    last_name: data.last_name,
-                    invite_token: data.token
+                    last_name: data.last_name
                   })
                 });
                 
                 const result = await response.text();
                 
                 if (response.ok) {
+                  // Mark invite as accepted on the backend
+                  try {
+                    await fetch('/app/invite/accept', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        token: data.token,
+                        email: data.email
+                      })
+                    });
+                  } catch (e) {
+                    console.warn('Failed to mark invite as accepted:', e);
+                  }
+                  
                   successDiv.textContent = 'Account created successfully! Redirecting to admin dashboard...';
                   successDiv.style.display = 'block';
                   
