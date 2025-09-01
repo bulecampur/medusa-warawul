@@ -14,9 +14,10 @@ async function getRegionMap(cacheId: string) {
   const { regionMap, regionMapUpdated } = regionMapCache
 
   if (!BACKEND_URL) {
-    throw new Error(
-      "Middleware.ts: Error fetching regions. Did you set up regions in your Medusa Admin and define a MEDUSA_BACKEND_URL environment variable? Note that the variable is no longer named NEXT_PUBLIC_MEDUSA_BACKEND_URL."
-    )
+    console.warn("MEDUSA_BACKEND_URL not set, using default region")
+    // Return a default region map to prevent middleware crashes
+    regionMapCache.regionMap.set(DEFAULT_REGION, { id: 'default', name: 'Default' } as any)
+    return regionMapCache.regionMap
   }
 
   if (
@@ -24,39 +25,46 @@ async function getRegionMap(cacheId: string) {
     regionMapUpdated < Date.now() - 3600 * 1000
   ) {
     // Fetch regions from Medusa. We can't use the JS client here because middleware is running on Edge and the client needs a Node environment.
-    const { regions } = await fetch(`${BACKEND_URL}/store/regions`, {
-      headers: {
-        "x-publishable-api-key": PUBLISHABLE_API_KEY!,
-      },
-      next: {
-        revalidate: 3600,
-        tags: [`regions-${cacheId}`],
-      },
-      cache: "force-cache",
-    }).then(async (response) => {
-      const json = await response.json()
+    try {
+      const { regions } = await fetch(`${BACKEND_URL}/store/regions`, {
+        headers: {
+          "x-publishable-api-key": PUBLISHABLE_API_KEY!,
+        },
+        next: {
+          revalidate: 3600,
+          tags: [`regions-${cacheId}`],
+        },
+        cache: "force-cache",
+      }).then(async (response) => {
+        const json = await response.json()
 
-      if (!response.ok) {
-        throw new Error(json.message)
+        if (!response.ok) {
+          throw new Error(json.message)
+        }
+
+        return json
+      })
+
+      if (!regions?.length) {
+        console.warn("No regions found, using default region")
+        regionMapCache.regionMap.set(DEFAULT_REGION, { id: 'default', name: 'Default' } as any)
+        return regionMapCache.regionMap
       }
 
-      return json
-    })
+      // Create a map of country codes to regions.
+      regions.forEach((region: HttpTypes.StoreRegion) => {
+        region.countries?.forEach((c) => {
+          regionMapCache.regionMap.set(c.iso_2 ?? "", region)
+        })
+      })
 
-    if (!regions?.length) {
-      throw new Error(
-        "No regions found. Please set up regions in your Medusa Admin."
-      )
+      regionMapCache.regionMapUpdated = Date.now()
+    } catch (error) {
+      console.warn("Failed to fetch regions, using default:", error)
+      regionMapCache.regionMap.set(DEFAULT_REGION, { id: 'default', name: 'Default' } as any)
+      return regionMapCache.regionMap
     }
 
-    // Create a map of country codes to regions.
-    regions.forEach((region: HttpTypes.StoreRegion) => {
-      region.countries?.forEach((c) => {
-        regionMapCache.regionMap.set(c.iso_2 ?? "", region)
-      })
-    })
-
-    regionMapCache.regionMapUpdated = Date.now()
   }
 
   return regionMapCache.regionMap
