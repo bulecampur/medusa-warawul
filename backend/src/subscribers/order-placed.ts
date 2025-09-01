@@ -1,38 +1,71 @@
-import { Modules } from '@medusajs/framework/utils'
-import { INotificationModuleService, IOrderModuleService } from '@medusajs/framework/types'
-import { SubscriberArgs, SubscriberConfig } from '@medusajs/medusa'
-import { EmailTemplates } from '../modules/email-notifications/templates'
+import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework";
+import { generateInvoiceWorkflow } from "../workflows/generate_invoice";
+import { sendOrderConfirmationWorkflow } from "../workflows/send_order_confirmation";
+import { trackOrderCreatedWorkflow } from "../workflows/track_order_created";
 
 export default async function orderPlacedHandler({
   event: { data },
   container,
-}: SubscriberArgs<any>) {
-  const notificationModuleService: INotificationModuleService = container.resolve(Modules.NOTIFICATION)
-  const orderModuleService: IOrderModuleService = container.resolve(Modules.ORDER)
-  
-  const order = await orderModuleService.retrieveOrder(data.id, { relations: ['items', 'summary', 'shipping_address'] })
-  const shippingAddress = await (orderModuleService as any).orderAddressService_.retrieve(order.shipping_address.id)
+}: SubscriberArgs<{ id: string }>) {
+  const logger = container.resolve("logger");
 
   try {
-    await notificationModuleService.createNotifications({
-      to: order.email,
-      channel: 'email',
-      template: EmailTemplates.ORDER_PLACED,
-      data: {
-        emailOptions: {
-          replyTo: 'info@example.com',
-          subject: 'Your order has been placed'
+    logger.info(`Processing order placed event for order: ${data.id}`);
+
+    // Generate invoice first
+    let invoiceData;
+    try {
+      logger.info(`Generating invoice for order ${data.id}`);
+      const invoiceResult = await generateInvoiceWorkflow(container).run({
+        input: {
+          orderId: data.id,
         },
-        order,
-        shippingAddress,
-        preview: 'Thank you for your order!'
-      }
-    })
+      });
+      invoiceData = invoiceResult.result;
+      logger.info(
+        `Invoice generated successfully for order ${data.id}: ${JSON.stringify(invoiceData)}`
+      );
+    } catch (error) {
+      logger.error("Failed to generate invoice for order", error);
+      // Don't block email sending if invoice generation fails
+    }
+
+    // Send order confirmation email using workflow
+    try {
+      logger.info(`Sending order confirmation email for order ${data.id}`);
+      
+      await sendOrderConfirmationWorkflow(container).run({
+        input: {
+          id: data.id,
+          invoiceData: invoiceData,
+        },
+      });
+
+      logger.info(
+        `✅ Order confirmation email sent successfully for order ${data.id}`
+      );
+    } catch (error) {
+      logger.error("Failed to send order confirmation email:", error);
+    }
+
+    // Track order creation analytics
+    try {
+      await trackOrderCreatedWorkflow(container).run({
+        input: {
+          order_id: data.id,
+        },
+      });
+      logger.info(`Order analytics tracked for order ${data.id}`);
+    } catch (error) {
+      logger.error("Failed to track order analytics:", error);
+      // Don't fail the whole process if analytics fail
+    }
   } catch (error) {
-    console.error('Error sending order confirmation notification:', error)
+    logger.error("Failed to process order placed event:", error);
+    logger.error("Error stack:", error.stack);
   }
 }
 
 export const config: SubscriberConfig = {
-  event: 'order.placed'
-}
+  event: "order.placed",
+};

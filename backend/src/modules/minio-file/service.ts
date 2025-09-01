@@ -53,12 +53,40 @@ class MinioFileProviderService extends AbstractFileProviderService {
     // Use provided bucket or default
     this.bucket = this.config_.bucket || DEFAULT_BUCKET
     this.logger_.info(`MinIO service initialized with bucket: ${this.bucket}`)
+    this.logger_.info(`MinIO endPoint received: ${this.config_.endPoint}`)
 
-    // Initialize Minio client with hardcoded SSL settings
+    // Parse endpoint to extract host, port, and SSL settings
+    let endPoint: string;
+    let port: number | undefined;
+    let useSSL: boolean;
+
+    if (this.config_.endPoint.startsWith('http://')) {
+      endPoint = this.config_.endPoint.replace('http://', '');
+      useSSL = false;
+      port = 80;
+    } else if (this.config_.endPoint.startsWith('https://')) {
+      endPoint = this.config_.endPoint.replace('https://', '');
+      useSSL = true;
+      port = 443;
+    } else {
+      // Default to HTTPS if no protocol specified
+      endPoint = this.config_.endPoint;
+      useSSL = true;
+      port = 443;
+    }
+
+    // Extract port if specified in endpoint
+    const portMatch = endPoint.match(/:(\d+)$/);
+    if (portMatch) {
+      port = parseInt(portMatch[1]);
+      endPoint = endPoint.replace(/:(\d+)$/, '');
+    }
+
+    // Initialize Minio client
     this.client = new Client({
-      endPoint: this.config_.endPoint,
-      port: 443,
-      useSSL: true,
+      endPoint,
+      port,
+      useSSL,
       accessKey: this.config_.accessKey,
       secretKey: this.config_.secretKey
     })
@@ -177,7 +205,27 @@ class MinioFileProviderService extends AbstractFileProviderService {
       )
 
       // Generate URL using the endpoint and bucket
-      const url = `https://${this.config_.endPoint}/${this.bucket}/${fileKey}`
+      let url: string;
+      
+      // Clean up endpoint to ensure no double protocols
+      let cleanEndpoint = this.config_.endPoint;
+      
+      // Remove any double protocol issues
+      if (cleanEndpoint.includes('://http://') || cleanEndpoint.includes('://https://')) {
+        // Fix malformed endpoints like "https://http://localhost:9002"
+        cleanEndpoint = cleanEndpoint.replace(/^https?:\/\//, '');
+      }
+      
+      if (cleanEndpoint.startsWith('http://') || cleanEndpoint.startsWith('https://')) {
+        // Endpoint already includes protocol
+        url = `${cleanEndpoint}/${this.bucket}/${fileKey}`;
+      } else {
+        // No protocol specified, default to http for localhost
+        const protocol = cleanEndpoint.includes('localhost') ? 'http' : 'https';
+        url = `${protocol}://${cleanEndpoint}/${this.bucket}/${fileKey}`;
+      }
+      
+      this.logger_.info(`Generated clean URL: ${url}`);
 
       this.logger_.info(`Successfully uploaded file ${fileKey} to MinIO bucket ${this.bucket}`)
 

@@ -1,4 +1,4 @@
-import { loadEnv, Modules, defineConfig } from '@medusajs/utils';
+import { loadEnv, Modules, defineConfig } from "@medusajs/utils";
 import {
   ADMIN_CORS,
   AUTH_CORS,
@@ -15,14 +15,19 @@ import {
   STORE_CORS,
   STRIPE_API_KEY,
   STRIPE_WEBHOOK_SECRET,
+  PAYPAL_CLIENT_ID,
+  PAYPAL_CLIENT_SECRET,
+  PAYPAL_ENVIRONMENT,
+  POSTHOG_EVENTS_API_KEY,
+  POSTHOG_HOST,
+  KLAVIYO_API_KEY,
+  GOOGLE_CALLBACK_URI,
+  GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET,
   WORKER_MODE,
-  MINIO_ENDPOINT,
-  MINIO_ACCESS_KEY,
-  MINIO_SECRET_KEY,
-  MINIO_BUCKET,
   MEILISEARCH_HOST,
-  MEILISEARCH_ADMIN_KEY
-} from 'lib/constants';
+  MEILISEARCH_ADMIN_KEY,
+} from "lib/constants";
 
 loadEnv(process.env.NODE_ENV, process.cwd());
 
@@ -37,13 +42,13 @@ const medusaConfig = {
       authCors: AUTH_CORS,
       storeCors: STORE_CORS,
       jwtSecret: JWT_SECRET,
-      cookieSecret: COOKIE_SECRET
+      cookieSecret: COOKIE_SECRET,
     },
     build: {
       rollupOptions: {
-        external: ["@medusajs/dashboard"]
-      }
-    }
+        external: ["@medusajs/dashboard"],
+      },
+    },
   },
   admin: {
     backendUrl: BACKEND_URL,
@@ -51,113 +56,174 @@ const medusaConfig = {
   },
   modules: [
     {
-      key: Modules.FILE,
-      resolve: '@medusajs/file',
+      key: Modules.ANALYTICS,
+      resolve: "@medusajs/medusa/analytics",
       options: {
         providers: [
-          ...(MINIO_ENDPOINT && MINIO_ACCESS_KEY && MINIO_SECRET_KEY ? [{
-            resolve: './src/modules/minio-file',
-            id: 'minio',
-            options: {
-              endPoint: MINIO_ENDPOINT,
-              accessKey: MINIO_ACCESS_KEY,
-              secretKey: MINIO_SECRET_KEY,
-              bucket: MINIO_BUCKET // Optional, default: medusa-media
-            }
-          }] : [{
-            resolve: '@medusajs/file-local',
-            id: 'local',
-            options: {
-              upload_dir: 'static',
-              backend_url: `${BACKEND_URL}/static`
-            }
-          }])
-        ]
-      }
-    },
-    ...(REDIS_URL ? [{
-      key: Modules.EVENT_BUS,
-      resolve: '@medusajs/event-bus-redis',
-      options: {
-        redisUrl: REDIS_URL
-      }
+          ...(POSTHOG_EVENTS_API_KEY && POSTHOG_HOST
+            ? [
+                {
+                  resolve: "@medusajs/analytics-posthog",
+                  id: "posthog",
+                  options: {
+                    posthogEventsKey: process.env.POSTHOG_EVENTS_API_KEY,
+                    posthogHost: process.env.POSTHOG_HOST,
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
     },
     {
-      key: Modules.WORKFLOW_ENGINE,
-      resolve: '@medusajs/workflow-engine-redis',
-      options: {
-        redis: {
-          url: REDIS_URL,
-        }
-      }
-    }] : []),
-    ...(SENDGRID_API_KEY && SENDGRID_FROM_EMAIL || RESEND_API_KEY && RESEND_FROM_EMAIL ? [{
-      key: Modules.NOTIFICATION,
-      resolve: '@medusajs/notification',
-      options: {
-        providers: [
-          ...(SENDGRID_API_KEY && SENDGRID_FROM_EMAIL ? [{
-            resolve: '@medusajs/notification-sendgrid',
-            id: 'sendgrid',
-            options: {
-              channels: ['email'],
-              api_key: SENDGRID_API_KEY,
-              from: SENDGRID_FROM_EMAIL,
-            }
-          }] : []),
-          ...(RESEND_API_KEY && RESEND_FROM_EMAIL ? [{
-            resolve: './src/modules/email-notifications',
-            id: 'resend',
-            options: {
-              channels: ['email'],
-              api_key: RESEND_API_KEY,
-              from: RESEND_FROM_EMAIL,
-            },
-          }] : []),
-        ]
-      }
-    }] : []),
-    ...(STRIPE_API_KEY && STRIPE_WEBHOOK_SECRET ? [{
-      key: Modules.PAYMENT,
-      resolve: '@medusajs/payment',
+      key: Modules.FILE,
+      resolve: "@medusajs/file",
       options: {
         providers: [
           {
-            resolve: '@medusajs/payment-stripe',
-            id: 'stripe',
+            resolve: "@medusajs/file-local",
+            id: "local",
             options: {
-              apiKey: STRIPE_API_KEY,
-              webhookSecret: STRIPE_WEBHOOK_SECRET,
+              upload_dir: "static",
+              backend_url: `${BACKEND_URL}/static`,
             },
           },
         ],
       },
-    }] : [])
+    },
+    ...(REDIS_URL
+      ? [
+          {
+            key: Modules.EVENT_BUS,
+            resolve: "@medusajs/event-bus-redis",
+            options: {
+              redisUrl: REDIS_URL,
+            },
+          },
+          {
+            key: Modules.WORKFLOW_ENGINE,
+            resolve: "@medusajs/workflow-engine-redis",
+            options: {
+              redis: {
+                url: REDIS_URL,
+              },
+            },
+          },
+        ]
+      : []),
+    ...(RESEND_API_KEY && RESEND_FROM_EMAIL
+      ? [
+          {
+            key: Modules.NOTIFICATION,
+            resolve: "@medusajs/notification",
+            options: {
+              providers: [
+                {
+                  resolve: "./src/modules/resend",
+                  id: "resend",
+                  options: {
+                    channels: ["email"],
+                    api_key: RESEND_API_KEY,
+                    from: RESEND_FROM_EMAIL,
+                  },
+                },
+              ],
+            },
+          },
+        ]
+      : []),
+    ...((STRIPE_API_KEY && STRIPE_WEBHOOK_SECRET) ||
+    (PAYPAL_CLIENT_ID && PAYPAL_CLIENT_SECRET && PAYPAL_ENVIRONMENT)
+      ? [
+          {
+            key: Modules.PAYMENT,
+            resolve: "@medusajs/payment",
+            options: {
+              providers: [
+                ...(STRIPE_API_KEY && STRIPE_WEBHOOK_SECRET
+                  ? [
+                      {
+                        resolve: "@medusajs/payment-stripe",
+                        id: "stripe",
+                        options: {
+                          apiKey: STRIPE_API_KEY,
+                          webhookSecret: STRIPE_WEBHOOK_SECRET,
+                        },
+                      },
+                    ]
+                  : []),
+                ...(PAYPAL_CLIENT_ID &&
+                PAYPAL_CLIENT_SECRET &&
+                PAYPAL_ENVIRONMENT
+                  ? [
+                      {
+                        resolve:
+                          "@rsc-labs/medusa-paypal-payment/providers/paypal-payment",
+                        id: "paypal-payment",
+                        options: {
+                          oAuthClientId: PAYPAL_CLIENT_ID,
+                          oAuthClientSecret: PAYPAL_CLIENT_SECRET,
+                          environment: PAYPAL_ENVIRONMENT,
+                        },
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          },
+        ]
+      : []),
   ],
   plugins: [
-  ...(MEILISEARCH_HOST && MEILISEARCH_ADMIN_KEY ? [{
-      resolve: '@rokmohar/medusa-plugin-meilisearch',
-      options: {
-        config: {
-          host: MEILISEARCH_HOST,
-          apiKey: MEILISEARCH_ADMIN_KEY
-        },
-        settings: {
-          products: {
-            type: 'products',
-            enabled: true,
-            fields: ['id', 'title', 'description', 'handle', 'variant_sku', 'thumbnail'],
-            indexSettings: {
-              searchableAttributes: ['title', 'description', 'variant_sku'],
-              displayedAttributes: ['id', 'handle', 'title', 'description', 'variant_sku', 'thumbnail'],
-              filterableAttributes: ['id', 'handle'],
+    {
+      resolve: "@rsc-labs/medusa-store-analytics-v2",
+      options: {},
+    },
+    ...(MEILISEARCH_HOST && MEILISEARCH_ADMIN_KEY
+      ? [
+          {
+            resolve: "@rokmohar/medusa-plugin-meilisearch",
+            options: {
+              config: {
+                host: MEILISEARCH_HOST,
+                apiKey: MEILISEARCH_ADMIN_KEY,
+              },
+              settings: {
+                products: {
+                  type: "products",
+                  enabled: true,
+                  fields: [
+                    "id",
+                    "title",
+                    "description",
+                    "handle",
+                    "variant_sku",
+                    "thumbnail",
+                  ],
+                  indexSettings: {
+                    searchableAttributes: [
+                      "title",
+                      "description",
+                      "variant_sku",
+                    ],
+                    displayedAttributes: [
+                      "id",
+                      "handle",
+                      "title",
+                      "description",
+                      "variant_sku",
+                      "thumbnail",
+                    ],
+                    filterableAttributes: ["id", "handle"],
+                  },
+                  primaryKey: "id",
+                },
+              },
             },
-            primaryKey: 'id',
-          }
-        }
-      }
-    }] : [])
-  ]
+          },
+        ]
+      : []),
+  ],
 };
 
 console.log(JSON.stringify(medusaConfig, null, 2));
