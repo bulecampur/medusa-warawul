@@ -4,7 +4,9 @@
       "Bash(npm run dev:*)",
       "Bash(taskkill:*)",
       "Bash(npx kill-port:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

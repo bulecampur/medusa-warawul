@@ -6,7 +6,7 @@ import { Logger } from "@medusajs/framework/types";
 import {
   ProviderSendNotificationDTO,
   ProviderSendNotificationResultsDTO,
-} from "@medusajs/types";
+} from "@medusajs/framework/types";
 import { Resend } from "resend";
 
 type InjectedDependencies = {

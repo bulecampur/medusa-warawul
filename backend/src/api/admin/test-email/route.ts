@@ -4,7 +4,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const notificationModuleService = req.scope.resolve("notification");
   const logger = req.scope.resolve("logger");
 
-  const { email, template } = req.body;
+  const { email, template } = req.body as { email?: string; template?: string };
 
   if (!email || !template) {
     return res.status(400).json({

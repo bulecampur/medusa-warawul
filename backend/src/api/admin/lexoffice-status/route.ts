@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import ProductSyncService from "../../../../modules/product_sync/service"
+import ProductSyncService from "../../../modules/product_sync/service"
 
 export const GET = async (
   req: MedusaRequest,

@@ -1,5 +1,5 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework";
-import { ProductSyncService } from "../modules/product_sync";
+import ProductSyncService from "../modules/product_sync/service";
 
 export default async function productSyncHandler({
   event: { data },

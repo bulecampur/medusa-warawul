@@ -6,7 +6,23 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const logger = req.scope.resolve("logger");
 
   try {
-    const diagnostics = {
+    const diagnostics: {
+      timestamp: string;
+      environment: {
+        NODE_ENV: string | undefined;
+        RESEND_API_KEY: string;
+        RESEND_FROM_EMAIL: string;
+      };
+      modules: {
+        notification?: string;
+        notificationDetails?: string;
+        resend?: string;
+      };
+      templates: Record<string, string>;
+      errors: string[];
+      resendAPI?: string;
+      overallHealth?: string;
+    } = {
       timestamp: new Date().toISOString(),
       environment: {
         NODE_ENV: process.env.NODE_ENV,
@@ -94,13 +110,13 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     // Overall health check
     const hasErrors = diagnostics.errors.length > 0;
     const missingTemplates = Object.values(diagnostics.templates).some(
-      (status) => status.includes("❌")
+      (status: string) => status.includes("❌")
     );
 
     diagnostics.overallHealth =
       hasErrors || missingTemplates ? "❌ Issues Found" : "✅ All Systems OK";
 
-    logger.info("Email system diagnostics completed", { diagnostics });
+    logger.info("Email system diagnostics completed");
 
     res.json(diagnostics);
   } catch (error) {
@@ -115,7 +131,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const logger = req.scope.resolve("logger");
-  const { test_email } = req.body;
+  const { test_email } = req.body as { test_email?: string };
 
   if (!test_email) {
     return res.status(400).json({

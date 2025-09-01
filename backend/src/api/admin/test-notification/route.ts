@@ -3,7 +3,7 @@ import { EmailService } from "../../../services/email";
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const logger = req.scope.resolve("logger");
-  const { email, type = "order_confirmation" } = req.body;
+  const { email, type = "order_confirmation" } = req.body as { email?: string; type?: string };
 
   if (!email) {
     return res.status(400).json({ error: "email is required" });
