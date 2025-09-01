@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { IUserModuleService, IAuthModuleService } from "@medusajs/framework/types";
 import { Modules } from "@medusajs/framework/utils";
+import { acceptInviteWorkflow } from "@medusajs/medusa/core-flows";
 
 export const GET = async (
   req: MedusaRequest,
@@ -268,23 +269,7 @@ export const GET = async (
               submitBtn.textContent = 'Processing...';
               
               try {
-                // First validate the token with our backend
-                const validateResponse = await fetch('/app/invite', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    token: data.token
-                  })
-                });
-                
-                if (!validateResponse.ok) {
-                  const errorData = await validateResponse.json();
-                  throw new Error(errorData.message || 'Invalid invite token');
-                }
-                
-                // Try creating the user directly through our backend endpoint first
+                // Use our backend endpoint with Medusa workflow
                 const response = await fetch('/app/invite', {
                   method: 'POST',
                   headers: {
@@ -409,7 +394,7 @@ export const POST = async (
       });
     }
 
-    // If action is create_user, handle user creation and invite acceptance
+    // If action is create_user, use the official Medusa workflow
     if (action === 'create_user') {
       if (!email || !password || !first_name || !last_name) {
         return res.status(400).json({
@@ -418,35 +403,42 @@ export const POST = async (
       }
 
       try {
-        // Create the user
-        const user = await userModuleService.createUsers({
-          email: invite.email,
-          first_name,
-          last_name,
+        const authModuleService: IAuthModuleService = req.scope.resolve(Modules.AUTH);
+
+        // First create the auth identity
+        const authIdentity = await authModuleService.createAuthIdentities({
+          provider_id: "emailpass",
+          entity_id: invite.email, // Use email as entity ID for now
+          provider_metadata: {
+            email: invite.email,
+            password: password,
+          }
         });
 
-        // Mark invite as accepted
-        await userModuleService.updateInvites({
-          id: invite.id,
-          accepted: true,
+        // Use Medusa's official acceptInviteWorkflow
+        const { result } = await acceptInviteWorkflow(req.scope).run({
+          input: {
+            invite_token: token,
+            user: {
+              email: invite.email,
+              first_name,
+              last_name,
+            },
+            auth_identity_id: authIdentity.id,
+          }
         });
 
         return res.json({
           success: true,
-          message: "User created and invite accepted successfully",
-          user: {
-            id: user.id,
-            email: user.email,
-            first_name: user.first_name,
-            last_name: user.last_name
-          }
+          message: "Invite accepted successfully using Medusa workflow",
+          users: result // acceptInviteWorkflow returns array of users
         });
 
-      } catch (userError) {
-        console.error('Error creating user:', userError);
+      } catch (workflowError) {
+        console.error('Error in acceptInviteWorkflow:', workflowError);
         return res.status(500).json({
-          message: "Failed to create user",
-          error: userError instanceof Error ? userError.message : 'Unknown error'
+          message: "Failed to accept invite",
+          error: workflowError instanceof Error ? workflowError.message : 'Unknown error'
         });
       }
     }
