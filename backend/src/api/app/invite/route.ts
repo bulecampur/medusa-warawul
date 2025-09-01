@@ -284,39 +284,25 @@ export const GET = async (
                   throw new Error(errorData.message || 'Invalid invite token');
                 }
                 
-                // Register the user normally (without invite_token in the request)
-                const response = await fetch('/admin/auth/user/emailpass/register', {
+                // Try creating the user directly through our backend endpoint first
+                const response = await fetch('/app/invite', {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
                   },
                   body: JSON.stringify({
+                    token: data.token,
                     email: data.email,
                     password: data.password,
                     first_name: data.first_name,
-                    last_name: data.last_name
+                    last_name: data.last_name,
+                    action: 'create_user'
                   })
                 });
                 
                 const result = await response.text();
                 
                 if (response.ok) {
-                  // Mark invite as accepted on the backend
-                  try {
-                    await fetch('/app/invite/accept', {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify({
-                        token: data.token,
-                        email: data.email
-                      })
-                    });
-                  } catch (e) {
-                    console.warn('Failed to mark invite as accepted:', e);
-                  }
-                  
                   successDiv.textContent = 'Account created successfully! Redirecting to admin dashboard...';
                   successDiv.style.display = 'block';
                   
@@ -388,7 +374,14 @@ export const POST = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
-  const { token } = req.body as { token?: string };
+  const { token, action, email, password, first_name, last_name } = req.body as {
+    token?: string;
+    action?: string;
+    email?: string;
+    password?: string;
+    first_name?: string;
+    last_name?: string;
+  };
 
   if (!token) {
     return res.status(400).json({
@@ -416,7 +409,49 @@ export const POST = async (
       });
     }
 
-    // Return the invite info for validation - let the admin auth handle user creation
+    // If action is create_user, handle user creation and invite acceptance
+    if (action === 'create_user') {
+      if (!email || !password || !first_name || !last_name) {
+        return res.status(400).json({
+          message: "Missing required user fields: email, password, first_name, last_name"
+        });
+      }
+
+      try {
+        // Create the user
+        const user = await userModuleService.createUsers({
+          email: invite.email,
+          first_name,
+          last_name,
+        });
+
+        // Mark invite as accepted
+        await userModuleService.updateInvites({
+          id: invite.id,
+          accepted: true,
+        });
+
+        return res.json({
+          success: true,
+          message: "User created and invite accepted successfully",
+          user: {
+            id: user.id,
+            email: user.email,
+            first_name: user.first_name,
+            last_name: user.last_name
+          }
+        });
+
+      } catch (userError) {
+        console.error('Error creating user:', userError);
+        return res.status(500).json({
+          message: "Failed to create user",
+          error: userError instanceof Error ? userError.message : 'Unknown error'
+        });
+      }
+    }
+
+    // Default: just validate the token
     return res.json({
       success: true,
       message: "Token is valid",

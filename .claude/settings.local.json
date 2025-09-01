@@ -6,7 +6,8 @@
       "Bash(npx kill-port:*)",
       "Bash(dir:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(del \"src\\api\\app\\invite\\accept\\route.ts\")"
     ],
     "deny": [],
     "ask": []
