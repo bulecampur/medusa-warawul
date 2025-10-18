@@ -56,6 +56,15 @@ const medusaConfig = {
   },
   modules: [
     {
+      resolve: "./src/modules/product_sync",
+    },
+    {
+      resolve: "./src/modules/lexoffice",
+    },
+    {
+      resolve: "./src/modules/invoice_generator",
+    },
+    {
       key: Modules.ANALYTICS,
       resolve: "@medusajs/medusa/analytics",
       options: {

@@ -37,17 +37,73 @@ export const POST = async (
   res: MedusaResponse
 ) => {
   const logger = req.scope.resolve("logger") as Logger
-  const { product_id } = req.body as { product_id?: string }
-
-  if (!product_id) {
-    return res.status(400).json({
-      error: "product_id is required"
-    })
-  }
+  const { product_id, sync_all } = req.body as { product_id?: string, sync_all?: boolean }
 
   try {
     const productModuleService = req.scope.resolve("product")
     const productSyncService = req.scope.resolve("product_sync") as ProductSyncService
+
+    // If sync_all is true, sync all products
+    if (sync_all) {
+      logger.info("Starting sync of all products to LexOffice")
+
+      // Get all products with their variants
+      const products = await productModuleService.listProducts({
+        relations: ["variants"]
+      })
+
+      if (!products || products.length === 0) {
+        return res.json({
+          message: "No products found to sync",
+          synced_count: 0,
+          total_products: 0
+        })
+      }
+
+      logger.info(`Found ${products.length} products to sync`)
+
+      let successCount = 0
+      let failedCount = 0
+      const errors: string[] = []
+
+      // Sync each product
+      for (const product of products) {
+        try {
+          logger.info(`Syncing product ${product.id} (${product.title})`)
+          await productSyncService.syncProduct(product)
+          successCount++
+
+          // Add a small delay to avoid rate limiting (2 seconds between products)
+          if (products.indexOf(product) < products.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 2000))
+          }
+        } catch (syncError) {
+          failedCount++
+          const errorMsg = `Product ${product.id}: ${syncError.message}`
+          errors.push(errorMsg)
+          logger.error(`Failed to sync product ${product.id}:`, syncError)
+          // Continue with other products
+        }
+      }
+
+      logger.info(`Sync complete: ${successCount} succeeded, ${failedCount} failed`)
+
+      return res.json({
+        success: true,
+        message: `Synced ${successCount} of ${products.length} products to LexOffice`,
+        synced_count: successCount,
+        failed_count: failedCount,
+        total_products: products.length,
+        errors: errors.length > 0 ? errors : undefined
+      })
+    }
+
+    // Single product sync
+    if (!product_id) {
+      return res.status(400).json({
+        error: "product_id is required when sync_all is not true"
+      })
+    }
 
     // Get the product with variants
     const product = await productModuleService.retrieveProduct(product_id, {
@@ -64,13 +120,15 @@ export const POST = async (
     await productSyncService.syncProduct(product)
 
     res.json({
-      message: `Product ${product_id} has been synced to LexOffice`,
+      success: true,
+      message: `Product "${product.title}" has been synced to LexOffice`,
       product_id: product_id
     })
   } catch (error) {
-    logger.error(`Failed to sync product ${product_id} to LexOffice:`, error)
+    logger.error(`Failed to sync products to LexOffice:`, error)
     res.status(500).json({
-      error: "Failed to sync product to LexOffice",
+      success: false,
+      error: "Failed to sync to LexOffice",
       details: error.message
     })
   }

@@ -6,8 +6,8 @@ const ProductLexofficeLinkWidget: React.FC<DetailWidgetProps<AdminProduct>> = ({
   const product = data
 
   const handleNavigateToLexoffice = () => {
-    // Navigate to the LexOffice sync page for this product
-    window.location.href = `/app/products/${product.id}/lexoffice`
+    // Navigate to the admin LexOffice sync page for this product
+    window.location.href = `/admin/products/${product.id}/lexoffice`
   }
 
   return (

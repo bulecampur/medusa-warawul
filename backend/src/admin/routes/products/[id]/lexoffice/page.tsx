@@ -31,7 +31,12 @@ const LexOfficePage: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/admin/products/${productId}/lexoffice`)
+      const response = await fetch(`/api/admin/products/${productId}/lexoffice`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
       if (!response.ok) {
         throw new Error('Failed to fetch LexOffice data')
       }
@@ -48,16 +53,20 @@ const LexOfficePage: React.FC = () => {
   const syncProduct = async () => {
     try {
       setSyncing(true)
-      const response = await fetch(`/admin/products/${productId}/lexoffice`, {
-        method: 'POST'
+      const response = await fetch(`/api/admin/products/${productId}/lexoffice`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
       })
       if (!response.ok) {
         throw new Error('Failed to sync product')
       }
-      
+
       // Refresh data after sync
       setTimeout(fetchData, 2000) // Wait 2 seconds for sync to complete
-      
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sync failed')
     } finally {
@@ -67,16 +76,20 @@ const LexOfficePage: React.FC = () => {
 
   const updateUuids = async () => {
     try {
-      const response = await fetch('/admin/lexoffice/update-uuids', {
-        method: 'POST'
+      const response = await fetch('/api/admin/lexoffice/update-uuids', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
       })
       if (!response.ok) {
         throw new Error('Failed to update UUIDs')
       }
-      
+
       // Refresh data
       fetchData()
-      
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'UUID update failed')
     }

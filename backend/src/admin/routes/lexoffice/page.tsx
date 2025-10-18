@@ -18,6 +18,8 @@ const LexOfficeDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const [syncingAll, setSyncingAll] = useState(false)
+  const [syncProgress, setSyncProgress] = useState('')
 
   const fetchData = async () => {
     try {
@@ -55,14 +57,55 @@ const LexOfficeDashboard: React.FC = () => {
       if (!response.ok) {
         throw new Error('Failed to update UUIDs')
       }
-      
+
       // Refresh data
       await fetchData()
-      
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'UUID update failed')
     } finally {
       setSyncing(false)
+    }
+  }
+
+  const syncAllProducts = async () => {
+    try {
+      setSyncingAll(true)
+      setSyncProgress('Starting sync of all products...')
+
+      const response = await fetch('/api/admin/lexoffice/sync', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sync_all: true })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to sync products')
+      }
+
+      const result = await response.json()
+      setSyncProgress(`Synced ${result.synced_count} of ${result.total_products} products`)
+
+      // Show errors if any
+      if (result.errors && result.errors.length > 0) {
+        console.error('Sync errors:', result.errors)
+        setError(`Some products failed to sync. Check console for details.`)
+      }
+
+      // Refresh data after sync
+      setTimeout(async () => {
+        await fetchData()
+        setSyncProgress('')
+      }, 2000)
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sync all products')
+      setSyncProgress('')
+    } finally {
+      setSyncingAll(false)
     }
   }
 
@@ -120,7 +163,7 @@ const LexOfficeDashboard: React.FC = () => {
           Manage product synchronization with LexOffice accounting system
         </p>
         
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{
             padding: '8px 16px',
             backgroundColor: '#dcfce7',
@@ -131,38 +174,70 @@ const LexOfficeDashboard: React.FC = () => {
           }}>
             {data?.total || 0} variants synced
           </div>
-          
+
+          <button
+            onClick={syncAllProducts}
+            disabled={syncingAll || syncing}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: syncingAll ? '#9ca3af' : '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: (syncingAll || syncing) ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: '600'
+            }}
+          >
+            {syncingAll ? '🔄 Syncing All Products...' : '🚀 Sync All Products'}
+          </button>
+
           <button
             onClick={updateUuids}
-            disabled={syncing}
+            disabled={syncing || syncingAll}
             style={{
               padding: '8px 16px',
               backgroundColor: syncing ? '#9ca3af' : '#10b981',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
-              cursor: syncing ? 'not-allowed' : 'pointer',
+              cursor: (syncing || syncingAll) ? 'not-allowed' : 'pointer',
               fontSize: '14px'
             }}
           >
-            {syncing ? 'Updating...' : 'Update All UUIDs in Database'}
+            {syncing ? '⏳ Updating...' : '💾 Update All UUIDs in Database'}
           </button>
 
           <button
             onClick={fetchData}
+            disabled={syncingAll || syncing}
             style={{
               padding: '8px 16px',
               backgroundColor: '#6b7280',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
-              cursor: 'pointer',
+              cursor: (syncingAll || syncing) ? 'not-allowed' : 'pointer',
               fontSize: '14px'
             }}
           >
-            Refresh Data
+            🔄 Refresh Data
           </button>
         </div>
+
+        {syncProgress && (
+          <div style={{
+            marginTop: '12px',
+            padding: '12px 16px',
+            backgroundColor: '#f0f9ff',
+            border: '1px solid #bae6fd',
+            borderRadius: '6px',
+            color: '#0369a1',
+            fontSize: '14px'
+          }}>
+            {syncProgress}
+          </div>
+        )}
       </div>
 
       {(!data?.mappings || data.mappings.length === 0) ? (
