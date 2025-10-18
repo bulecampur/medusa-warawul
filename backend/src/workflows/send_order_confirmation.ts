@@ -9,9 +9,10 @@ type WorkflowInput = {
   id: string;
   invoiceData?: {
     invoiceId: string;
+    invoiceNumber: string | null;
     documentFileId: string;
     pdfUrl: string;
-    r2Key: string;
+    minioKey: string;
   };
 };
 

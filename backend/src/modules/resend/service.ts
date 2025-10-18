@@ -57,19 +57,21 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
     this.options = options;
     this.logger = logger;
 
-    // Initialize Minio service if needed for attachments
+    // Initialize Minio/S3 service if needed for attachments
     try {
       this.minio = new MinioService(
         { logger },
         {
-          endpoint: process.env.MINIO_ENDPOINT || "",
-          accessKeyId: process.env.MINIO_ACCESS_KEY || "",
-          secretAccessKey: process.env.MINIO_SECRET_KEY || "",
-          bucket: process.env.MINIO_BUCKET,
+          endpoint: process.env.S3_ENDPOINT || process.env.MINIO_ENDPOINT || "",
+          accessKeyId: process.env.S3_ACCESS_KEY_ID || process.env.MINIO_ACCESS_KEY || "",
+          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || process.env.MINIO_SECRET_KEY || "",
+          bucket: process.env.S3_BUCKET || process.env.MINIO_BUCKET || "medusa",
+          region: process.env.S3_REGION || "auto",
+          fileUrl: process.env.S3_FILE_URL,
         }
       );
     } catch (error) {
-      this.logger.warn("Minio service not available for email attachments");
+      this.logger.warn("S3/Minio service not available for email attachments");
       this.minio = undefined;
     }
   }
@@ -153,10 +155,10 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
     }
 
     // Add invoice attachment if available
-    if ((notification.data as any)?.invoiceData?.r2Key && this.minio) {
+    if ((notification.data as any)?.invoiceData?.minioKey && this.minio) {
       try {
         const invoicePdf = await this.minio.downloadFile(
-          (notification.data as any).invoiceData.r2Key
+          (notification.data as any).invoiceData.minioKey
         );
         // Use branded filename with invoice number if available
         const invoiceNumber = (notification.data as any)?.invoiceData

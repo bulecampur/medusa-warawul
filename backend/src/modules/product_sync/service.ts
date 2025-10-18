@@ -9,6 +9,7 @@ import LexofficeService from "../lexoffice/service";
 
 type InjectedDependencies = {
   logger: Logger;
+  productModuleService?: IProductModuleService;
 };
 
 interface LexofficeProductMapping {
@@ -28,9 +29,9 @@ class ProductSyncService {
   private productModuleService?: IProductModuleService;
   private eventBusModuleService?: IEventBusModuleService;
 
-  constructor({ logger }: InjectedDependencies) {
+  constructor({ logger, productModuleService }: InjectedDependencies) {
     this.logger = logger;
-    this.productModuleService = undefined;
+    this.productModuleService = productModuleService;
     this.eventBusModuleService = undefined;
 
     // Initialize Lexoffice service
@@ -859,7 +860,7 @@ class ProductSyncService {
   }
 
   /**
-   * Update variant with LexOffice UUID - stores for batch update via API
+   * Update variant with LexOffice UUID - updates immediately if productModuleService is available
    */
   private async updateVariantWithLexofficeUuid(
     variantId: string,
@@ -869,14 +870,30 @@ class ProductSyncService {
       this.logger.info(
         `Variant ${variantId} synced with LexOffice UUID: ${lexofficeUuid}`
       );
-      
-      // The actual database update will be handled by the batch update API endpoint
-      // This ensures we use Medusa's safe APIs instead of raw SQL
-      this.logger.info(`Use the "Update UUIDs in Database" button to store UUID ${lexofficeUuid} for variant ${variantId}`)
-      
+
+      // Update the variant metadata immediately if productModuleService is available
+      if (this.productModuleService) {
+        try {
+          await this.productModuleService.upsertProductVariants([{
+            id: variantId,
+            metadata: {
+              lexoffice_uuid: lexofficeUuid,
+            }
+          }]);
+          this.logger.info(`Successfully updated variant ${variantId} metadata with UUID ${lexofficeUuid}`);
+        } catch (updateError) {
+          this.logger.warn(
+            `Could not update variant metadata immediately for ${variantId}: ${updateError.message}`
+          );
+          this.logger.info(`Use the "Update UUIDs in Database" button to manually store UUID ${lexofficeUuid} for variant ${variantId}`);
+        }
+      } else {
+        this.logger.info(`ProductModuleService not available. Use the "Update UUIDs in Database" button to store UUID ${lexofficeUuid} for variant ${variantId}`);
+      }
+
     } catch (error) {
       this.logger.error(
-        `Error logging variant sync ${variantId}:`,
+        `Error updating variant ${variantId}:`,
         error
       );
     }
