@@ -34,10 +34,18 @@ class ProductSyncService {
     this.productModuleService = productModuleService;
     this.eventBusModuleService = undefined;
 
+    // Validate API key is present
+    const apiKey = process.env.LEXWARE_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "LEXWARE_API_KEY environment variable is required for ProductSyncService"
+      );
+    }
+
     // Initialize Lexoffice service
     this.lexoffice = new LexofficeService(
       { logger },
-      { api_key: process.env.LEXWARE_API_KEY || "" }
+      { api_key: apiKey }
     );
 
     // Load existing mappings from storage (in production, this would be from a database)

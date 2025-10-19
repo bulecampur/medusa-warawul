@@ -27,6 +27,7 @@ import {
   WORKER_MODE,
   MEILISEARCH_HOST,
   MEILISEARCH_ADMIN_KEY,
+  LEXWARE_API_KEY,
 } from "lib/constants";
 
 loadEnv(process.env.NODE_ENV, process.cwd());
@@ -56,14 +57,21 @@ const medusaConfig = {
   },
   modules: [
     {
-      resolve: "./src/modules/product_sync",
-    },
-    {
-      resolve: "./src/modules/lexoffice",
-    },
-    {
       resolve: "./src/modules/invoice_generator",
     },
+    ...(LEXWARE_API_KEY
+      ? [
+          {
+            resolve: "./src/modules/lexoffice",
+            options: {
+              api_key: LEXWARE_API_KEY,
+            },
+          },
+          {
+            resolve: "./src/modules/product_sync",
+          },
+        ]
+      : []),
     {
       key: Modules.ANALYTICS,
       resolve: "@medusajs/medusa/analytics",
