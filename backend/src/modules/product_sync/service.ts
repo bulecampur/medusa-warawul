@@ -9,7 +9,6 @@ import LexofficeService from "../lexoffice/service";
 
 type InjectedDependencies = {
   logger: Logger;
-  productModuleService?: IProductModuleService;
 };
 
 interface LexofficeProductMapping {
@@ -29,9 +28,9 @@ class ProductSyncService {
   private productModuleService?: IProductModuleService;
   private eventBusModuleService?: IEventBusModuleService;
 
-  constructor({ logger, productModuleService }: InjectedDependencies) {
+  constructor({ logger }: InjectedDependencies) {
     this.logger = logger;
-    this.productModuleService = productModuleService;
+    this.productModuleService = undefined;
     this.eventBusModuleService = undefined;
 
     // Validate API key is present
